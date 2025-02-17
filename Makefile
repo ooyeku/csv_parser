@@ -124,7 +124,7 @@ bench:
 	@go test -bench=. -benchmem ./pkg/...
 
 # Run comprehensive benchmarks with the CLI tool
-bench-cli:
+bench-cli: build
 	@echo "Generating benchmark data..."
 	@mkdir -p testdata/bench
 	@./csv_parser bench --generate
@@ -138,20 +138,26 @@ bench-all: bench-cli
 	@benchstat bench_results.txt
 
 # Run CPU profiling benchmarks
-bench-cpu:
+bench-cpu: profiles
 	@echo "Running CPU profiling benchmarks..."
-	@go test -bench=. -cpuprofile=cpu.prof ./pkg/...
-	@echo "To analyze CPU profile:"
-	@echo "go tool pprof cpu.prof"
-	@echo "Or for web view: go tool pprof -http=:8080 cpu.prof"
+	@echo "Profiling main package..."
+	@go test -run=^$$ -bench=. -cpuprofile=profiles/pkg_cpu.prof ./pkg
+	@echo "Profiling benchmark package..."
+	@go test -run=^$$ -bench=. -cpuprofile=profiles/benchmark_cpu.prof ./pkg/benchmark
+	@echo "\nTo analyze CPU profiles:"
+	@echo "Main package:    go tool pprof -http=:8080 profiles/pkg_cpu.prof"
+	@echo "Benchmark pkg:   go tool pprof -http=:8081 profiles/benchmark_cpu.prof"
 
 # Run memory profiling benchmarks
-bench-mem:
+bench-mem: profiles
 	@echo "Running memory profiling benchmarks..."
-	@go test -bench=. -memprofile=mem.prof ./pkg/...
-	@echo "To analyze memory profile:"
-	@echo "go tool pprof mem.prof"
-	@echo "Or for web view: go tool pprof -http=:8080 mem.prof"
+	@echo "Profiling main package..."
+	@go test -run=^$$ -bench=. -memprofile=profiles/pkg_mem.prof ./pkg
+	@echo "Profiling benchmark package..."
+	@go test -run=^$$ -bench=. -memprofile=profiles/benchmark_mem.prof ./pkg/benchmark
+	@echo "\nTo analyze memory profiles:"
+	@echo "Main package:    go tool pprof -http=:8080 profiles/pkg_mem.prof"
+	@echo "Benchmark pkg:   go tool pprof -http=:8081 profiles/benchmark_mem.prof"
 
 # Create profiles directory
 profiles:
@@ -177,17 +183,17 @@ bench-profile: profiles
 		./pkg/benchmark
 
 # Analysis targets
-analyze-cpu:
-	go tool pprof -http=:8080 profiles/cpu.prof
+analyze-pkg-cpu:
+	go tool pprof -http=:8080 profiles/pkg_cpu.prof
 
 analyze-benchmark-cpu:
 	go tool pprof -http=:8081 profiles/benchmark_cpu.prof
 
-analyze-mem:
-	go tool pprof -http=:8082 profiles/mem.prof
+analyze-pkg-mem:
+	go tool pprof -http=:8080 profiles/pkg_mem.prof
 
 analyze-benchmark-mem:
-	go tool pprof -http=:8083 profiles/benchmark_mem.prof
+	go tool pprof -http=:8081 profiles/benchmark_mem.prof
 
 # Help command
 help:

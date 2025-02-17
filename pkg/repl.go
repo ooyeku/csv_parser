@@ -3,12 +3,9 @@ package pkg
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // REPL represents the interactive CSV analysis environment
@@ -19,547 +16,24 @@ type REPL struct {
 	redoStack    []*Table
 	formats      map[string]FormatOptions
 	history      []string
-	lastResult   *Table
 }
 
 // NewREPL creates a new REPL instance
 func NewREPL() *REPL {
-	r := &REPL{
+	return &REPL{
 		undoStack: make([]*Table, 0),
 		redoStack: make([]*Table, 0),
 		formats:   make(map[string]FormatOptions),
 		history:   make([]string, 0),
 	}
-
-	// Initialize default formats
-	r.formats["default"] = FormatOptions{
-		Style:          DefaultStyle,
-		HeaderStyle:    Bold,
-		HeaderColor:    Cyan,
-		BorderColor:    Blue,
-		AlternateRows:  true,
-		AlternateColor: Dim,
-		NumberedRows:   true,
-		MaxColumnWidth: 20,
-		WrapText:       true,
-	}
-
-	r.formats["fancy"] = FormatOptions{
-		Style:          FancyStyle,
-		HeaderStyle:    Bold + Underline,
-		HeaderColor:    Yellow,
-		BorderColor:    Green,
-		AlternateRows:  true,
-		AlternateColor: Dim,
-		NumberedRows:   true,
-		MaxColumnWidth: 30,
-		WrapText:       true,
-	}
-
-	r.formats["compact"] = FormatOptions{
-		Style:          RoundedStyle,
-		HeaderStyle:    Bold,
-		HeaderColor:    White,
-		BorderColor:    Blue,
-		CompactBorders: true,
-		MaxColumnWidth: 15,
-	}
-
-	r.formats["stats"] = FormatOptions{
-		Style:          FancyStyle,
-		HeaderStyle:    Bold + Underline,
-		HeaderColor:    Magenta,
-		BorderColor:    Cyan,
-		AlternateRows:  true,
-		AlternateColor: Dim,
-		Alignment:      []string{"left", "right", "right", "right", "right"},
-	}
-
-	return r
 }
 
-// Table Operations
-
+// pushUndo adds the current table state to the undo stack
 func (r *REPL) pushUndo() {
-	if r.currentTable == nil {
-		return
+	if r.currentTable != nil {
+		r.undoStack = append(r.undoStack, r.currentTable.Copy())
+		r.redoStack = nil // Clear redo stack when new action is performed
 	}
-	tableCopy := r.currentTable.Copy()
-	r.undoStack = append(r.undoStack, tableCopy)
-	r.redoStack = nil // Clear redo stack on new operation
-}
-
-func (r *REPL) Undo() error {
-	if len(r.undoStack) == 0 {
-		return fmt.Errorf("nothing to undo")
-	}
-	r.redoStack = append(r.redoStack, r.currentTable.Copy())
-	r.currentTable = r.undoStack[len(r.undoStack)-1]
-	r.undoStack = r.undoStack[:len(r.undoStack)-1]
-	return nil
-}
-
-func (r *REPL) Redo() error {
-	if len(r.redoStack) == 0 {
-		return fmt.Errorf("nothing to redo")
-	}
-	r.undoStack = append(r.undoStack, r.currentTable.Copy())
-	r.currentTable = r.redoStack[len(r.redoStack)-1]
-	r.redoStack = r.redoStack[:len(r.redoStack)-1]
-	return nil
-}
-
-// Advanced Analysis
-
-func (r *REPL) Summarize(columns []string) (*Table, error) {
-	if r.currentTable == nil {
-		return nil, fmt.Errorf("no table loaded")
-	}
-
-	if len(columns) == 0 {
-		columns = r.currentTable.Headers
-	}
-
-	summary := NewTable([]string{"Column", "Type", "Min", "Max", "Mean", "Median", "StdDev", "Unique"})
-
-	for _, col := range columns {
-		values, err := r.currentTable.GetColumn(col)
-		if err != nil {
-			continue
-		}
-
-		colType, _ := r.currentTable.GetColumnType(col)
-		stats := r.calculateStats(values, colType)
-		err = summary.AddRow([]string{
-			col,
-			fmt.Sprintf("%v", colType),
-			stats["minimum"],
-			stats["max"],
-			stats["mean"],
-			stats["median"],
-			stats["stddev"],
-			stats["unique"],
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return summary, nil
-}
-
-func (r *REPL) Correlate(columns []string) (*Table, error) {
-	if r.currentTable == nil {
-		return nil, fmt.Errorf("no table loaded")
-	}
-
-	if len(columns) == 0 {
-		// Only use numeric columns
-		for _, h := range r.currentTable.Headers {
-			colType, _ := r.currentTable.GetColumnType(h)
-			if colType == TypeInteger || colType == TypeFloat {
-				columns = append(columns, h)
-			}
-		}
-	}
-
-	corr := NewTable(append([]string{"Column"}, columns...))
-
-	for _, row := range columns {
-		rowVals, _ := r.currentTable.GetColumn(row)
-		rowNums := toNumbers(rowVals)
-
-		corrRow := []string{row}
-		for _, col := range columns {
-			colVals, _ := r.currentTable.GetColumn(col)
-			colNums := toNumbers(colVals)
-
-			correlation := calculateCorrelation(rowNums, colNums)
-			corrRow = append(corrRow, fmt.Sprintf("%.3f", correlation))
-		}
-		err := corr.AddRow(corrRow)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return corr, nil
-}
-
-func (r *REPL) Pivot(rows, cols, values string, agg string) (*Table, error) {
-	if r.currentTable == nil {
-		return nil, fmt.Errorf("no table loaded")
-	}
-
-	// Get unique values for column headers
-	colVals, err := r.currentTable.GetColumn(cols)
-	if err != nil {
-		return nil, err
-	}
-	uniqueCols := uniqueStrings(colVals)
-	sort.Strings(uniqueCols)
-
-	// Create headers for pivot table
-	headers := []string{rows}
-	headers = append(headers, uniqueCols...)
-
-	pivot := NewTable(headers)
-
-	// Get unique values for row dimension
-	rowVals, err := r.currentTable.GetColumn(rows)
-	if err != nil {
-		return nil, err
-	}
-	uniqueRows := uniqueStrings(rowVals)
-	sort.Strings(uniqueRows)
-
-	// Build pivot table
-	for _, rowVal := range uniqueRows {
-		row := []string{rowVal}
-		for _, colVal := range uniqueCols {
-			filtered := r.currentTable.Filter(func(row []string) bool {
-				rowIdx := r.currentTable.index[rows]
-				colIdx := r.currentTable.index[cols]
-				return row[rowIdx] == rowVal && row[colIdx] == colVal
-			})
-
-			// Get aggregated value
-			valIdx := r.currentTable.index[values]
-			vals := make([]string, 0)
-			for _, r := range filtered.Rows {
-				vals = append(vals, r[valIdx])
-			}
-			aggVal := aggregateValues(vals, agg)
-			row = append(row, aggVal)
-		}
-		err := pivot.AddRow(row)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return pivot, nil
-}
-
-func (r *REPL) DateAnalysis(dateCol string) (*Table, error) {
-	if r.currentTable == nil {
-		return nil, fmt.Errorf("no table loaded")
-	}
-
-	dates, err := r.currentTable.GetColumn(dateCol)
-	if err != nil {
-		return nil, err
-	}
-
-	analysis := NewTable([]string{
-		"Metric", "Value",
-		"Sample", "Distribution",
-	})
-
-	var validDates []time.Time
-	var minDate, maxDate time.Time
-	format := "2006-01-02" // Default format
-
-	// Try to parse dates and find minimum/max
-	for _, d := range dates {
-		if t, err := time.Parse(format, d); err == nil {
-			validDates = append(validDates, t)
-			if minDate.IsZero() || t.Before(minDate) {
-				minDate = t
-			}
-			if maxDate.IsZero() || t.After(maxDate) {
-				maxDate = t
-			}
-		}
-	}
-
-	if len(validDates) == 0 {
-		return nil, fmt.Errorf("no valid dates found in column %s", dateCol)
-	}
-
-	// Calculate date metrics
-	duration := maxDate.Sub(minDate)
-	days := duration.Hours() / 24
-	years := days / 365.25
-
-	// Count by year
-	yearCount := make(map[int]int)
-	for _, d := range validDates {
-		yearCount[d.Year()]++
-	}
-
-	// Count by month
-	monthCount := make(map[time.Month]int)
-	for _, d := range validDates {
-		monthCount[d.Month()]++
-	}
-
-	// Count by weekday
-	weekdayCount := make(map[time.Weekday]int)
-	for _, d := range validDates {
-		weekdayCount[d.Weekday()]++
-	}
-
-	// Add metrics to analysis table
-	err = analysis.AddRow([]string{
-		"Date Range",
-		fmt.Sprintf("%v to %v", minDate.Format(format), maxDate.Format(format)),
-		fmt.Sprintf("%.1f years", years),
-		createDistributionBar(len(validDates), len(dates)),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Add year distribution
-	years = float64(len(yearCount))
-	err = analysis.AddRow([]string{
-		"Years",
-		fmt.Sprintf("%d unique", len(yearCount)),
-		fmt.Sprintf("%.1f dates/year", float64(len(validDates))/years),
-		createYearDistribution(yearCount),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Add month distribution
-	err = analysis.AddRow([]string{
-		"Months",
-		fmt.Sprintf("%d months", len(monthCount)),
-		fmt.Sprintf("%.1f dates/month", float64(len(validDates))/12),
-		createMonthDistribution(monthCount),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Add weekday distribution
-	err = analysis.AddRow([]string{
-		"Weekdays",
-		fmt.Sprintf("%d days", len(weekdayCount)),
-		fmt.Sprintf("%.1f dates/day", float64(len(validDates))/7),
-		createWeekdayDistribution(weekdayCount),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return analysis, nil
-}
-
-// Helper Functions
-
-func (r *REPL) calculateStats(values []string, colType ColumnType) map[string]string {
-	stats := make(map[string]string)
-
-	if colType == TypeInteger || colType == TypeFloat {
-		nums := toNumbers(values)
-		if len(nums) == 0 {
-			return map[string]string{
-				"minimum": "N/A", "max": "N/A", "mean": "N/A",
-				"median": "N/A", "stddev": "N/A", "unique": "0",
-			}
-		}
-
-		sort.Float64s(nums)
-
-		stats["minimum"] = fmt.Sprintf("%.2f", nums[0])
-		stats["max"] = fmt.Sprintf("%.2f", nums[len(nums)-1])
-		stats["mean"] = fmt.Sprintf("%.2f", mean(nums))
-		stats["median"] = fmt.Sprintf("%.2f", median(nums))
-		stats["stddev"] = fmt.Sprintf("%.2f", stdDev(nums))
-		stats["unique"] = fmt.Sprintf("%d", len(uniqueFloat64s(nums)))
-	} else {
-		unique := uniqueStrings(values)
-		stats["minimum"] = "N/A"
-		stats["max"] = "N/A"
-		stats["mean"] = "N/A"
-		stats["median"] = "N/A"
-		stats["stddev"] = "N/A"
-		stats["unique"] = fmt.Sprintf("%d", len(unique))
-	}
-
-	return stats
-}
-
-func toNumbers(values []string) []float64 {
-	var nums []float64
-	for _, v := range values {
-		if n, err := strconv.ParseFloat(v, 64); err == nil {
-			nums = append(nums, n)
-		}
-	}
-	return nums
-}
-
-func mean(nums []float64) float64 {
-	if len(nums) == 0 {
-		return 0
-	}
-	sum := 0.0
-	for _, n := range nums {
-		sum += n
-	}
-	return sum / float64(len(nums))
-}
-
-func median(nums []float64) float64 {
-	if len(nums) == 0 {
-		return 0
-	}
-	mid := len(nums) / 2
-	if len(nums)%2 == 0 {
-		return (nums[mid-1] + nums[mid]) / 2
-	}
-	return nums[mid]
-}
-
-func stdDev(nums []float64) float64 {
-	if len(nums) < 2 {
-		return 0
-	}
-	m := mean(nums)
-	var sum float64
-	for _, n := range nums {
-		sum += (n - m) * (n - m)
-	}
-	return math.Sqrt(sum / float64(len(nums)-1))
-}
-
-func calculateCorrelation(x, y []float64) float64 {
-	if len(x) != len(y) || len(x) < 2 {
-		return 0
-	}
-
-	mx, my := mean(x), mean(y)
-	var num, dx, dy float64
-
-	for i := range x {
-		dx += (x[i] - mx) * (x[i] - mx)
-		dy += (y[i] - my) * (y[i] - my)
-		num += (x[i] - mx) * (y[i] - my)
-	}
-
-	if dx == 0 || dy == 0 {
-		return 0
-	}
-	return num / math.Sqrt(dx*dy)
-}
-
-func uniqueStrings(values []string) []string {
-	unique := make(map[string]struct{})
-	for _, v := range values {
-		unique[v] = struct{}{}
-	}
-	result := make([]string, 0, len(unique))
-	for v := range unique {
-		result = append(result, v)
-	}
-	return result
-}
-
-func uniqueFloat64s(values []float64) []float64 {
-	unique := make(map[float64]struct{})
-	for _, v := range values {
-		unique[v] = struct{}{}
-	}
-	result := make([]float64, 0, len(unique))
-	for v := range unique {
-		result = append(result, v)
-	}
-	return result
-}
-
-func aggregateValues(values []string, agg string) string {
-	nums := toNumbers(values)
-	if len(nums) == 0 {
-		return ""
-	}
-
-	switch strings.ToLower(agg) {
-	case "sum":
-		return fmt.Sprintf("%.2f", mean(nums)*float64(len(nums)))
-	case "avg":
-		return fmt.Sprintf("%.2f", mean(nums))
-	case "minimum":
-		sort.Float64s(nums)
-		return fmt.Sprintf("%.2f", nums[0])
-	case "max":
-		sort.Float64s(nums)
-		return fmt.Sprintf("%.2f", nums[len(nums)-1])
-	case "count":
-		return fmt.Sprintf("%d", len(nums))
-	default:
-		return ""
-	}
-}
-
-func createDistributionBar(valid, total int) string {
-	if total == 0 {
-		return ""
-	}
-	percent := float64(valid) / float64(total) * 100
-	bars := int(percent / 5)
-	return fmt.Sprintf("%s %.1f%%", strings.Repeat("█", bars), percent)
-}
-
-func createYearDistribution(counts map[int]int) string {
-	years := make([]int, 0, len(counts))
-	for y := range counts {
-		years = append(years, y)
-	}
-	sort.Ints(years)
-
-	m := 0
-	for _, count := range counts {
-		if count > m {
-			m = count
-		}
-	}
-
-	var dist strings.Builder
-	for _, year := range years {
-		bars := int(float64(counts[year]) / float64(m) * 10)
-		dist.WriteString(fmt.Sprintf("%d%s ", year%100, strings.Repeat("▇", bars)))
-	}
-	return dist.String()
-}
-
-func createMonthDistribution(counts map[time.Month]int) string {
-	m := 0
-	for _, count := range counts {
-		if count > m {
-			m = count
-		}
-	}
-
-	var dist strings.Builder
-	for m := time.January; m <= time.December; m++ {
-		if count, ok := counts[m]; ok {
-			bars := int(float64(count) / float64(m) * 5)
-			dist.WriteString(fmt.Sprintf("%s%s ", m.String()[:3], strings.Repeat("▇", bars)))
-		}
-	}
-	return dist.String()
-}
-
-func createWeekdayDistribution(counts map[time.Weekday]int) string {
-	m := 0
-	for _, count := range counts {
-		if count > m {
-			m = count
-		}
-	}
-
-	var dist strings.Builder
-	for d := time.Sunday; d <= time.Saturday; d++ {
-		if count, ok := counts[d]; ok {
-			bars := int(float64(count) / float64(m) * 5)
-			dist.WriteString(fmt.Sprintf("%s%s ", d.String()[:3], strings.Repeat("▇", bars)))
-		}
-	}
-	return dist.String()
 }
 
 // Start begins the REPL session
@@ -568,6 +42,8 @@ func (r *REPL) Start() {
 	fmt.Println("Type 'help' for available commands or 'exit' to quit")
 
 	scanner := bufio.NewScanner(os.Stdin)
+	mainFormat := DefaultFormat()
+
 	for {
 		fmt.Print("\n> ")
 		if !scanner.Scan() {
@@ -575,8 +51,6 @@ func (r *REPL) Start() {
 		}
 
 		input := scanner.Text()
-		r.history = append(r.history, input)
-
 		args := strings.Fields(input)
 		if len(args) == 0 {
 			continue
@@ -598,145 +72,41 @@ func (r *REPL) Start() {
 				fmt.Printf("Error: %v\n", err)
 			}
 		case "info":
-			if err := r.showInfo(); err != nil {
-				fmt.Printf("Error: %v\n", err)
+			if r.currentTable == nil {
+				fmt.Println("No file loaded. Use 'load <file>' first.")
+				continue
 			}
+			r.showInfo()
 		case "preview":
+			if r.currentTable == nil {
+				fmt.Println("No file loaded. Use 'load <file>' first.")
+				continue
+			}
 			n := 5
 			if len(args) > 1 {
 				if n_, err := strconv.Atoi(args[1]); err == nil {
 					n = n_
 				}
 			}
-			if err := r.showPreview(n); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			}
-		case "stats":
-			if err := r.showStats(); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			}
-		case "summarize":
-			var cols []string
-			if len(args) > 1 {
-				cols = strings.Split(args[1], ",")
-			}
-			if summary, err := r.Summarize(cols); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println(summary.Format(r.formats["stats"]))
-			}
-		case "correlate":
-			var cols []string
-			if len(args) > 1 {
-				cols = strings.Split(args[1], ",")
-			}
-			if corr, err := r.Correlate(cols); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println(corr.Format(r.formats["stats"]))
-			}
-		case "pivot":
-			if len(args) < 4 {
-				fmt.Println("Usage: pivot <row_col> <col_col> <value_col> [agg=sum]")
-				continue
-			}
-			agg := "sum"
-			if len(args) > 4 {
-				agg = args[4]
-			}
-			if pivot, err := r.Pivot(args[1], args[2], args[3], agg); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println(pivot.Format(r.formats["default"]))
-			}
-		case "dates":
-			if len(args) < 2 {
-				fmt.Println("Usage: dates <date_column>")
-				continue
-			}
-			if analysis, err := r.DateAnalysis(args[1]); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println(analysis.Format(r.formats["stats"]))
-			}
-		case "undo":
-			if err := r.Undo(); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println("Operation undone")
-				err := r.showPreview(5)
-				if err != nil {
-					return
-				}
-			}
-		case "redo":
-			if err := r.Redo(); err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println("Operation redone")
-				err := r.showPreview(5)
-				if err != nil {
-					return
-				}
-			}
-		default:
-			fmt.Printf("Unknown command: %s\nType 'help' for available commands\n", command)
+			r.showPreview(n, mainFormat)
 		}
 	}
 }
 
 func (r *REPL) showHelp() {
-	help := NewTable([]string{"Command", "Description"})
-	err := help.AddRow([]string{"load <file>", "Load a CSV file"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"info", "Show table information"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"preview [n]", "Show first n rows (default: 5)"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"stats", "Show basic column statistics"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"summarize [cols]", "Show detailed statistics for columns"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"correlate [cols]", "Show correlation matrix for numeric columns"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"pivot <row> <col> <val> [agg]", "Create pivot table with aggregation"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"dates <col>", "Analyze dates in a column"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"undo", "Undo last operation"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"redo", "Redo last undone operation"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"help", "Show this help message"})
-	if err != nil {
-		return
-	}
-	err = help.AddRow([]string{"exit", "Exit the REPL"})
-	if err != nil {
-		return
-	}
-
-	fmt.Println(help.Format(r.formats["compact"]))
+	fmt.Println(`Available commands:
+  load <file>              - Load a CSV file
+  info                     - Show information about the current table
+  preview [n]              - Show first n rows (default: 5)
+  stats                    - Show column statistics
+  summarize [cols]         - Show detailed statistics for columns
+  correlate [cols]         - Show correlation matrix for numeric columns
+  pivot <row> <col> <val> - Create pivot table with aggregation
+  dates <col>             - Analyze dates in a column
+  undo                    - Undo last operation
+  redo                    - Redo last undone operation
+  help                    - Show this help message
+  exit                    - Exit the REPL`)
 }
 
 func (r *REPL) loadFile(path string) error {
@@ -744,112 +114,40 @@ func (r *REPL) loadFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			return
-		}
-	}(file)
+	defer file.Close()
 
 	table, err := ReadTable(file, DefaultConfig())
 	if err != nil {
 		return fmt.Errorf("error reading table: %w", err)
 	}
 
+	r.pushUndo() // Save current state for undo
 	r.currentTable = table
 	r.currentFile = path
-	fmt.Printf("Loaded %d rows from %s\n", len(table.Rows), path)
 	return nil
 }
 
-func (r *REPL) showInfo() error {
-	if r.currentTable == nil {
-		return fmt.Errorf("no table loaded")
-	}
+func (r *REPL) showInfo() {
+	fmt.Printf("File: %s\n", r.currentFile)
+	fmt.Printf("Rows: %d\n", len(r.currentTable.Rows))
+	fmt.Printf("Columns: %d\n\n", len(r.currentTable.Headers))
 
-	info := NewTable([]string{"Property", "Value"})
-	err := info.AddRow([]string{"File", r.currentFile})
-	if err != nil {
-		return err
-	}
-	err = info.AddRow([]string{"Rows", fmt.Sprintf("%d", len(r.currentTable.Rows))})
-	if err != nil {
-		return err
-	}
-	err = info.AddRow([]string{"Columns", fmt.Sprintf("%d", len(r.currentTable.Headers))})
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(info.Format(r.formats["compact"]))
-
-	cols := NewTable([]string{"#", "Column", "Type"})
+	fmt.Println("Column Information:")
 	for i, header := range r.currentTable.Headers {
 		colType, _ := r.currentTable.GetColumnType(header)
-		err := cols.AddRow([]string{
-			fmt.Sprintf("%d", i+1),
-			header,
-			fmt.Sprintf("%v", colType),
-		})
-		if err != nil {
-			return err
-		}
+		fmt.Printf("%d. %s (%v)\n", i+1, header, colType)
 	}
-
-	fmt.Println("\nColumns:")
-	fmt.Println(cols.Format(r.formats["compact"]))
-	return nil
 }
 
-func (r *REPL) showPreview(n int) error {
-	if r.currentTable == nil {
-		return fmt.Errorf("no table loaded")
-	}
-
+func (r *REPL) showPreview(n int, format FormatOptions) {
 	preview := NewTable(r.currentTable.Headers)
 	for i := 0; i < minimum(n, len(r.currentTable.Rows)); i++ {
-		err := preview.AddRow(r.currentTable.Rows[i])
-		if err != nil {
-			return err
+		if err := preview.AddRow(r.currentTable.Rows[i]); err != nil {
+			fmt.Printf("Error creating preview: %v\n", err)
+			return
 		}
 	}
-	fmt.Println(preview.Format(r.formats["default"]))
-	return nil
-}
-
-func (r *REPL) showStats() error {
-	if r.currentTable == nil {
-		return fmt.Errorf("no table loaded")
-	}
-
-	stats := NewTable([]string{"Column", "Type", "Unique Values", "Null Count"})
-	for _, header := range r.currentTable.Headers {
-		col, _ := r.currentTable.GetColumn(header)
-		colType, _ := r.currentTable.GetColumnType(header)
-
-		unique := make(map[string]struct{})
-		nullCount := 0
-		for _, val := range col {
-			if val == "" {
-				nullCount++
-			} else {
-				unique[val] = struct{}{}
-			}
-		}
-
-		err := stats.AddRow([]string{
-			header,
-			fmt.Sprintf("%v", colType),
-			fmt.Sprintf("%d", len(unique)),
-			fmt.Sprintf("%d", nullCount),
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Println(stats.Format(r.formats["stats"]))
-	return nil
+	fmt.Println(preview.Format(format))
 }
 
 func minimum(a, b int) int {
