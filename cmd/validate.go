@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
+	"strconv"
 
 	"github.com/ooyeku/csv_parser/pkg"
 	"github.com/spf13/cobra"
@@ -36,56 +36,49 @@ Example:
 
 		// Create reader with default config
 		cfg := pkg.DefaultConfig()
-		reader, err := pkg.NewReader(file, cfg)
+		table, err := pkg.ReadTable(file, cfg)
 		if err != nil {
-			return fmt.Errorf("error creating reader: %w", err)
+			return fmt.Errorf("error reading table: %w", err)
 		}
 
-		var (
-			rowCount    int
-			columnCount int
-			errors      []string
-		)
+		var errors []string
 
-		// Validate records
-		for {
-			record, err := reader.ReadRecord()
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return fmt.Errorf("error reading record: %w", err)
-			}
+		// Validate column types
+		for _, header := range table.Headers {
+			colType, _ := table.GetColumnType(header)
+			col, _ := table.GetColumn(header)
 
-			rowCount++
-
-			// Check column consistency
-			if rowCount == 1 {
-				columnCount = len(record)
-			} else if len(record) != columnCount {
-				errors = append(errors, fmt.Sprintf("Row %d: Expected %d columns, got %d",
-					rowCount, columnCount, len(record)))
-				if !strict {
-					continue
-				}
-				break
-			}
-
-			// In strict mode, check for empty fields
-			if strict {
-				for i, field := range record {
-					if field == "" {
-						errors = append(errors, fmt.Sprintf("Row %d, Column %d: Empty field",
-							rowCount, i+1))
+			for i, val := range col {
+				switch colType {
+				case pkg.TypeInteger:
+					if _, err := strconv.ParseInt(val, 10, 64); err != nil && val != "" {
+						errors = append(errors, fmt.Sprintf("Row %d, Column %s: Invalid integer value %q",
+							i+1, header, val))
 					}
+				case pkg.TypeFloat:
+					if _, err := strconv.ParseFloat(val, 64); err != nil && val != "" {
+						errors = append(errors, fmt.Sprintf("Row %d, Column %s: Invalid float value %q",
+							i+1, header, val))
+					}
+				case pkg.TypeBoolean:
+					if val != "" && val != "true" && val != "false" {
+						errors = append(errors, fmt.Sprintf("Row %d, Column %s: Invalid boolean value %q",
+							i+1, header, val))
+					}
+				}
+
+				// In strict mode, check for empty fields
+				if strict && val == "" {
+					errors = append(errors, fmt.Sprintf("Row %d, Column %s: Empty field not allowed in strict mode",
+						i+1, header))
 				}
 			}
 		}
 
 		// Display results
 		fmt.Printf("File: %s\n", filePath)
-		fmt.Printf("Rows processed: %d\n", rowCount)
-		fmt.Printf("Columns per row: %d\n", columnCount)
+		fmt.Printf("Rows processed: %d\n", len(table.Rows))
+		fmt.Printf("Columns: %d\n", len(table.Headers))
 
 		if len(errors) > 0 {
 			fmt.Println("\nValidation Errors:")
@@ -96,6 +89,14 @@ Example:
 		}
 
 		fmt.Println("\nValidation successful! No errors found.")
+
+		// Show column type summary
+		fmt.Println("\nColumn Type Summary:")
+		for _, header := range table.Headers {
+			colType, _ := table.GetColumnType(header)
+			fmt.Printf("- %s: %v\n", header, colType)
+		}
+
 		return nil
 	},
 }

@@ -239,3 +239,40 @@ func (cr *Reader) BytesRead() int64 {
 func (cr *Reader) Position() string {
 	return fmt.Sprintf("row %d, column %d", cr.currentRowNum, cr.currentColNum+1)
 }
+
+// ToTable reads the entire CSV and returns it as a Table
+func (cr *Reader) ToTable() (*Table, error) {
+	// Read first row as headers
+	headers, err := cr.ReadRecord()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read headers: %w", err)
+	}
+
+	// Create table with headers
+	table := NewTable(headers)
+
+	// Read remaining rows
+	for {
+		record, err := cr.ReadRecord()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read record: %w", err)
+		}
+		if err := table.AddRow(record); err != nil {
+			return nil, fmt.Errorf("failed to add row: %w", err)
+		}
+	}
+
+	return table, nil
+}
+
+// ReadTable is a convenience function to read a CSV file directly into a Table
+func ReadTable(rd io.Reader, cfg Config) (*Table, error) {
+	reader, err := NewReader(rd, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return reader.ToTable()
+}
