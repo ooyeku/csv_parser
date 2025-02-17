@@ -193,7 +193,7 @@ func (t *Table) Format(opts FormatOptions) string {
 
 			// Write each line of the wrapped cells
 			for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
-				writeRowBorder(&sb, opts, rowIdx)
+				writeRowBorder(&sb, opts)
 				if opts.NumberedRows {
 					if lineIdx == 0 {
 						sb.WriteString(fmt.Sprintf(" %2d ", rowIdx+1))
@@ -219,7 +219,7 @@ func (t *Table) Format(opts FormatOptions) string {
 				sb.WriteString("\n")
 			}
 		} else {
-			writeRowBorder(&sb, opts, rowIdx)
+			writeRowBorder(&sb, opts)
 			if opts.NumberedRows {
 				sb.WriteString(fmt.Sprintf(" %2d ", rowIdx+1))
 				sb.WriteString(opts.Style.Vertical)
@@ -281,7 +281,7 @@ func writeHorizontalBorder(sb *strings.Builder, widths []int, opts FormatOptions
 	}
 }
 
-func writeRowBorder(sb *strings.Builder, opts FormatOptions, rowIdx int) {
+func writeRowBorder(sb *strings.Builder, opts FormatOptions) {
 	sb.WriteString(opts.BorderColor + opts.Style.Vertical + Reset)
 }
 

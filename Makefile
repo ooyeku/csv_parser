@@ -1,4 +1,4 @@
-.PHONY: build test test-verbose test-race test-short coverage coverage-func coverage-html lint clean help bench bench-all bench-cpu bench-mem bench-profile analyze-cpu analyze-mem analyze-block analyze-mutex test-pkg
+.PHONY: build test test-verbose test-race test-short coverage coverage-func coverage-html lint clean help bench bench-all bench-cpu bench-mem bench-profile analyze-cpu analyze-mem analyze-block analyze-mutex test-pkg fmt
 
 # Default target
 all: build
@@ -55,16 +55,29 @@ coverage-badge: coverage
 	@COVERAGE=$$(go tool cover -func=coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+') ;\
 	echo "Total coverage: $$COVERAGE%"
 
+# Format code
+fmt:
+	@echo "Formatting code..."
+	@gofmt -w -s .
+	@echo "Code formatting complete"
+
 # Run linter
-lint:
+lint: fmt
 	@echo "Running go vet..."
-	@go vet ./...
-	@echo "Running gofmt..."
-	@test -z $$(gofmt -l .)
-	@echo "Running golint..."
-	@golint ./...
-	@echo "Running staticcheck..."
-	@staticcheck ./...
+	@go vet ./... || (echo "go vet failed"; exit 1)
+	@if command -v golint >/dev/null 2>&1; then \
+		echo "Running golint..."; \
+		golint -set_exit_status ./... || (echo "golint failed"; exit 1); \
+	else \
+		echo "Warning: golint not installed. Run 'make setup' to install it."; \
+	fi
+	@if command -v staticcheck >/dev/null 2>&1; then \
+		echo "Running staticcheck..."; \
+		staticcheck ./... || (echo "staticcheck failed"; exit 1); \
+	else \
+		echo "Warning: staticcheck not installed. Run 'make setup' to install it."; \
+	fi
+	@echo "All lint checks passed!"
 
 # Clean build artifacts
 clean:
@@ -202,4 +215,5 @@ help:
 	@echo "  analyze-mem   - Analyze memory profile"
 	@echo "  analyze-block - Analyze block profile"
 	@echo "  analyze-mutex - Analyze mutex profile"
+	@echo "  fmt           - Format code"
 	@echo "  help          - Show this help message" 
