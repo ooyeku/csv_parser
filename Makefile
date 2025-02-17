@@ -1,4 +1,4 @@
-.PHONY: build test coverage lint clean help bench bench-all bench-cpu bench-mem bench-profile
+.PHONY: build test coverage lint clean help bench bench-all bench-cpu bench-mem bench-profile analyze-cpu analyze-mem analyze-block analyze-mutex
 
 # Default target
 all: build
@@ -26,15 +26,38 @@ clean:
 	rm -f csv_parser
 	rm -f coverage.out
 	rm -f coverage.html
-	rm -f cpu.prof
-	rm -f mem.prof
+	rm -f bench_results.txt
 	rm -rf testdata/bench
+	rm -rf profiles/
+	rm -rf testdata/
+	rm -f *.prof
+	rm -f *.test
+	rm -f *.out
+	rm -f *.html
+	rm -f *.txt
 
 # Install development dependencies
 setup:
+	@echo "Installing development dependencies..."
 	go mod download
 	go install golang.org/x/lint/golint@latest
 	go install golang.org/x/perf/cmd/benchstat@latest
+	@echo "Installing Graphviz for profile visualization..."
+	@if command -v apt-get >/dev/null; then \
+		sudo apt-get update && sudo apt-get install -y graphviz; \
+	elif command -v brew >/dev/null; then \
+		brew install graphviz; \
+	elif command -v pacman >/dev/null; then \
+		sudo pacman -S graphviz; \
+	elif command -v yum >/dev/null; then \
+		sudo yum install -y graphviz; \
+	elif command -v choco >/dev/null; then \
+		choco install graphviz; \
+	else \
+		echo "Please install Graphviz manually: https://graphviz.org/download/"; \
+		exit 1; \
+	fi
+	@echo "Setup complete!"
 
 # Run quick benchmarks
 bench:
@@ -71,16 +94,41 @@ bench-mem:
 	@echo "go tool pprof mem.prof"
 	@echo "Or for web view: go tool pprof -http=:8080 mem.prof"
 
-# Run benchmarks with custom profile
-bench-profile:
-	@echo "Running benchmarks with all profiles..."
-	@go test -bench=. \
-		-benchmem \
-		-cpuprofile=cpu.prof \
-		-memprofile=mem.prof \
-		-blockprofile=block.prof \
-		-mutexprofile=mutex.prof \
-		./pkg/...
+# Create profiles directory
+profiles:
+	@mkdir -p profiles
+
+# Run benchmarks with profiling for each package separately
+bench-profile: profiles
+	@echo "Running benchmarks with profiles..."
+	@echo "Profiling main package..."
+	go test -run=^$$ -bench=. \
+		-cpuprofile=profiles/cpu.prof \
+		-memprofile=profiles/mem.prof \
+		-blockprofile=profiles/block.prof \
+		-mutexprofile=profiles/mutex.prof \
+		./pkg
+
+	@echo "Profiling benchmark package..."
+	go test -run=^$$ -bench=. \
+		-cpuprofile=profiles/benchmark_cpu.prof \
+		-memprofile=profiles/benchmark_mem.prof \
+		-blockprofile=profiles/benchmark_block.prof \
+		-mutexprofile=profiles/benchmark_mutex.prof \
+		./pkg/benchmark
+
+# Analysis targets
+analyze-cpu:
+	go tool pprof -http=:8080 profiles/cpu.prof
+
+analyze-benchmark-cpu:
+	go tool pprof -http=:8081 profiles/benchmark_cpu.prof
+
+analyze-mem:
+	go tool pprof -http=:8082 profiles/mem.prof
+
+analyze-benchmark-mem:
+	go tool pprof -http=:8083 profiles/benchmark_mem.prof
 
 # Help command
 help:
@@ -97,4 +145,8 @@ help:
 	@echo "  bench-cpu    - Run CPU profiling benchmarks"
 	@echo "  bench-mem    - Run memory profiling benchmarks"
 	@echo "  bench-profile- Run benchmarks with all profiles"
+	@echo "  analyze-cpu  - Analyze CPU profile"
+	@echo "  analyze-mem  - Analyze memory profile"
+	@echo "  analyze-block - Analyze block profile"
+	@echo "  analyze-mutex - Analyze mutex profile"
 	@echo "  help         - Show this help message" 
