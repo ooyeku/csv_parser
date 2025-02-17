@@ -112,8 +112,14 @@ func TestWrapText(t *testing.T) {
 
 func TestTableFormat(t *testing.T) {
 	table := NewTable([]string{"Name", "Age", "City"})
-	table.AddRow([]string{"John Doe", "30", "New York"})
-	table.AddRow([]string{"Jane Smith", "25", "Los Angeles"})
+	err := table.AddRow([]string{"John Doe", "30", "New York"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"Jane Smith", "25", "Los Angeles"})
+	if err != nil {
+		return
+	}
 
 	tests := []struct {
 		name    string
@@ -199,7 +205,10 @@ func TestBorderStyles(t *testing.T) {
 	}
 
 	table := NewTable([]string{"Test"})
-	table.AddRow([]string{"Data"})
+	err := table.AddRow([]string{"Data"})
+	if err != nil {
+		return
+	}
 
 	for _, style := range styles {
 		t.Run(style.name, func(t *testing.T) {

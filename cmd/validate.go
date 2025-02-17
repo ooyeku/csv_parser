@@ -32,7 +32,12 @@ Example:
 		if err != nil {
 			return fmt.Errorf("error opening file: %w", err)
 		}
-		defer file.Close()
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				fmt.Printf("Error closing file: %v\n", err)
+			}
+		}(file)
 
 		// Create reader with default config
 		cfg := pkg.DefaultConfig()
@@ -65,6 +70,8 @@ Example:
 						errors = append(errors, fmt.Sprintf("Row %d, Column %s: Invalid boolean value %q",
 							i+1, header, val))
 					}
+				default:
+					panic("unhandled default case")
 				}
 
 				// In strict mode, check for empty fields

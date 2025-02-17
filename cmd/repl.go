@@ -197,7 +197,12 @@ func loadFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			fmt.Printf("error closing file: %v\n", err)
+		}
+	}(file)
 
 	table, err := pkg.ReadTable(file, pkg.DefaultConfig())
 	if err != nil {
@@ -224,7 +229,10 @@ func showTableInfo() {
 func showPreview(n int, format pkg.FormatOptions) {
 	preview := pkg.NewTable(currentTable.Headers)
 	for i := 0; i < minInt(n, len(currentTable.Rows)); i++ {
-		preview.AddRow(currentTable.Rows[i])
+		err := preview.AddRow(currentTable.Rows[i])
+		if err != nil {
+			return
+		}
 	}
 	fmt.Println(preview.Format(format))
 }
@@ -247,12 +255,15 @@ func showTableStats(format pkg.FormatOptions) {
 			}
 		}
 
-		stats.AddRow([]string{
+		err := stats.AddRow([]string{
 			header,
 			fmt.Sprintf("%v", colType),
 			strconv.Itoa(len(unique)),
 			strconv.Itoa(nullCount),
 		})
+		if err != nil {
+			return
+		}
 	}
 
 	fmt.Println(stats.Format(getStatsFormat()))
@@ -273,7 +284,10 @@ func filterTable(column, op, value string) (*pkg.Table, error) {
 
 	for _, row := range currentTable.Rows {
 		if matchesFilter(row[colIdx], op, value) {
-			filtered.AddRow(row)
+			err := filtered.AddRow(row)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return filtered, nil
@@ -338,14 +352,25 @@ func exportTable(path string) error {
 	if err != nil {
 		return fmt.Errorf("error creating file: %w", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			fmt.Printf("error closing file: %v\n", err)
+		}
+	}(file)
 
 	// Write headers
-	fmt.Fprintln(file, strings.Join(currentTable.Headers, ","))
+	_, err = fmt.Fprintln(file, strings.Join(currentTable.Headers, ","))
+	if err != nil {
+		return err
+	}
 
 	// Write rows
 	for _, row := range currentTable.Rows {
-		fmt.Fprintln(file, strings.Join(row, ","))
+		_, err := fmt.Fprintln(file, strings.Join(row, ","))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

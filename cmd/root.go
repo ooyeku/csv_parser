@@ -1,6 +1,7 @@
 /*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+Copyright © 2025 Ola Yeku <ooyeku@gmail.com>
 */
+
 package cmd
 
 import (

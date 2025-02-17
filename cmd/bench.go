@@ -73,7 +73,12 @@ func benchmarkFile(file string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Printf("Error closing file: %v\n", err)
+		}
+	}(f)
 
 	fileInfo, err := os.Stat(file)
 	if err != nil {

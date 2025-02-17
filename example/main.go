@@ -16,7 +16,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error opening file: %v", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Fatalf("Error closing file: %v", err)
+		}
+	}(file)
 
 	// Create table from CSV
 	table, err := pkg.ReadTable(file, pkg.DefaultConfig())
@@ -160,12 +165,15 @@ func analyzeExperience(t *pkg.Table) *pkg.Table {
 		avgYears := totalYears / float64(len(rows))
 		avgSalary := totalSalary / float64(len(rows))
 
-		expTable.AddRow([]string{
+		err := expTable.AddRow([]string{
 			dept,
 			fmt.Sprintf("%.1f", avgYears),
 			strconv.Itoa(len(rows)),
 			fmt.Sprintf("%.2f", avgSalary),
 		})
+		if err != nil {
+			return nil
+		}
 	}
 
 	return expTable
@@ -196,11 +204,14 @@ func createAgeGroups(t *pkg.Table) *pkg.Table {
 		}
 		avg := total / float64(len(salaries))
 
-		ageTable.AddRow([]string{
+		err := ageTable.AddRow([]string{
 			group,
 			strconv.Itoa(len(salaries)),
 			fmt.Sprintf("%.2f", avg),
 		})
+		if err != nil {
+			return nil
+		}
 	}
 
 	return ageTable

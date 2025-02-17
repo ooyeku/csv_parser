@@ -34,7 +34,12 @@ Example:
 		if err != nil {
 			return fmt.Errorf("error opening file: %w", err)
 		}
-		defer file.Close()
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				fmt.Printf("Error closing file: %v\n", err)
+			}
+		}(file)
 
 		// Create config
 		cfg := pkg.Config{

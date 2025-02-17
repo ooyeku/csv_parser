@@ -99,8 +99,14 @@ func TestDetectType(t *testing.T) {
 
 func TestGetColumn(t *testing.T) {
 	table := NewTable([]string{"id", "name", "age"})
-	table.AddRow([]string{"1", "John", "25"})
-	table.AddRow([]string{"2", "Jane", "30"})
+	err := table.AddRow([]string{"1", "John", "25"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"2", "Jane", "30"})
+	if err != nil {
+		return
+	}
 
 	tests := []struct {
 		name    string
@@ -138,9 +144,18 @@ func TestGetColumn(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	table := NewTable([]string{"id", "name", "age"})
-	table.AddRow([]string{"1", "John", "25"})
-	table.AddRow([]string{"2", "Jane", "30"})
-	table.AddRow([]string{"3", "Bob", "25"})
+	err := table.AddRow([]string{"1", "John", "25"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"2", "Jane", "30"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"3", "Bob", "25"})
+	if err != nil {
+		return
+	}
 
 	filtered := table.Filter(func(row []string) bool {
 		return row[2] == "25" // Filter by age
@@ -159,9 +174,18 @@ func TestFilter(t *testing.T) {
 
 func TestSort(t *testing.T) {
 	table := NewTable([]string{"id", "name", "age"})
-	table.AddRow([]string{"2", "Jane", "30"})
-	table.AddRow([]string{"1", "John", "25"})
-	table.AddRow([]string{"3", "Bob", "25"})
+	err := table.AddRow([]string{"2", "Jane", "30"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"1", "John", "25"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"3", "Bob", "25"})
+	if err != nil {
+		return
+	}
 
 	tests := []struct {
 		name    string
@@ -198,7 +222,10 @@ func TestSort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tableCopy := NewTable(table.Headers)
 			for _, row := range table.Rows {
-				tableCopy.AddRow(row)
+				err := tableCopy.AddRow(row)
+				if err != nil {
+					return
+				}
 			}
 
 			err := tableCopy.Sort(tt.columns)
@@ -216,9 +243,18 @@ func TestSort(t *testing.T) {
 
 func TestGroupBy(t *testing.T) {
 	table := NewTable([]string{"id", "dept", "salary"})
-	table.AddRow([]string{"1", "IT", "1000"})
-	table.AddRow([]string{"2", "IT", "2000"})
-	table.AddRow([]string{"3", "HR", "1500"})
+	err := table.AddRow([]string{"1", "IT", "1000"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"2", "IT", "2000"})
+	if err != nil {
+		return
+	}
+	err = table.AddRow([]string{"3", "HR", "1500"})
+	if err != nil {
+		return
+	}
 
 	tests := []struct {
 		name      string
@@ -268,34 +304,43 @@ func TestGroupBy(t *testing.T) {
 
 func TestCopy(t *testing.T) {
 	original := NewTable([]string{"id", "name"})
-	original.AddRow([]string{"1", "John"})
-	original.AddRow([]string{"2", "Jane"})
+	err := original.AddRow([]string{"1", "John"})
+	if err != nil {
+		return
+	}
+	err = original.AddRow([]string{"2", "Jane"})
+	if err != nil {
+		return
+	}
 
-	copy := original.Copy()
+	table := original.Copy()
 
 	// Verify headers
-	if !reflect.DeepEqual(copy.Headers, original.Headers) {
-		t.Errorf("Copy() headers = %v, want %v", copy.Headers, original.Headers)
+	if !reflect.DeepEqual(table.Headers, original.Headers) {
+		t.Errorf("Copy() headers = %v, want %v", table.Headers, original.Headers)
 	}
 
 	// Verify rows
-	if !reflect.DeepEqual(copy.Rows, original.Rows) {
-		t.Errorf("Copy() rows = %v, want %v", copy.Rows, original.Rows)
+	if !reflect.DeepEqual(table.Rows, original.Rows) {
+		t.Errorf("Copy() rows = %v, want %v", table.Rows, original.Rows)
 	}
 
 	// Verify types
-	if !reflect.DeepEqual(copy.types, original.types) {
-		t.Errorf("Copy() types = %v, want %v", copy.types, original.types)
+	if !reflect.DeepEqual(table.types, original.types) {
+		t.Errorf("Copy() types = %v, want %v", table.types, original.types)
 	}
 
 	// Verify index
-	if !reflect.DeepEqual(copy.index, original.index) {
-		t.Errorf("Copy() index = %v, want %v", copy.index, original.index)
+	if !reflect.DeepEqual(table.index, original.index) {
+		t.Errorf("Copy() index = %v, want %v", table.index, original.index)
 	}
 
-	// Verify deep copy by modifying original
-	original.AddRow([]string{"3", "Bob"})
-	if len(copy.Rows) == len(original.Rows) {
-		t.Error("Copy() did not create a deep copy")
+	// Verify deep table by modifying original
+	err = original.AddRow([]string{"3", "Bob"})
+	if err != nil {
+		return
+	}
+	if len(table.Rows) == len(original.Rows) {
+		t.Error("Copy() did not create a deep table")
 	}
 }

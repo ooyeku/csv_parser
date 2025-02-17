@@ -109,7 +109,10 @@ func (t *Table) Filter(predicate func(row []string) bool) *Table {
 	newTable := NewTable(t.Headers)
 	for _, row := range t.Rows {
 		if predicate(row) {
-			newTable.AddRow(row)
+			err := newTable.AddRow(row)
+			if err != nil {
+				return nil
+			}
 		}
 	}
 	return newTable
@@ -223,7 +226,10 @@ func (t *Table) GroupBy(groupCols []string, aggs map[string]string) (*Table, err
 			i++
 		}
 
-		result.AddRow(newRow)
+		err := result.AddRow(newRow)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
@@ -261,29 +267,29 @@ func aggregate(vals []string, agg string) (string, error) {
 		avg := sum / float64(len(vals))
 		return strconv.FormatFloat(avg, 'f', -1, 64), nil
 
-	case "min":
+	case "minimum":
 		if len(vals) == 0 {
 			return "", nil
 		}
-		min := vals[0]
+		minValue := vals[0]
 		for _, v := range vals[1:] {
-			if v < min {
-				min = v
+			if v < minValue {
+				minValue = v
 			}
 		}
-		return min, nil
+		return minValue, nil
 
-	case "max":
+	case "maximum":
 		if len(vals) == 0 {
 			return "", nil
 		}
-		max := vals[0]
+		maximum := vals[0]
 		for _, v := range vals[1:] {
-			if v > max {
-				max = v
+			if v > maximum {
+				maximum = v
 			}
 		}
-		return max, nil
+		return maximum, nil
 
 	default:
 		return "", fmt.Errorf("unknown aggregation %q", agg)
@@ -317,7 +323,10 @@ func (t *Table) String() string {
 		if i > 0 {
 			sb.WriteString(" | ")
 		}
-		fmt.Fprintf(&sb, "%-*s", widths[i], h)
+		_, err := fmt.Fprintf(&sb, "%-*s", widths[i], h)
+		if err != nil {
+			return ""
+		}
 	}
 	sb.WriteString("\n")
 
@@ -336,7 +345,10 @@ func (t *Table) String() string {
 			if i > 0 {
 				sb.WriteString(" | ")
 			}
-			fmt.Fprintf(&sb, "%-*s", widths[i], cell)
+			_, err := fmt.Fprintf(&sb, "%-*s", widths[i], cell)
+			if err != nil {
+				return ""
+			}
 		}
 		sb.WriteString("\n")
 	}

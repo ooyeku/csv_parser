@@ -29,7 +29,12 @@ Example:
 		if err != nil {
 			return fmt.Errorf("error opening file: %w", err)
 		}
-		defer file.Close()
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				fmt.Printf("Error closing file: %v\n", err)
+			}
+		}(file)
 
 		// Create reader with default config
 		cfg := pkg.DefaultConfig()
@@ -50,7 +55,7 @@ Example:
 
 			// Get sample of unique values
 			uniqueVals := make(map[string]struct{})
-			for _, v := range col[:min(len(col), 5)] {
+			for _, v := range col[:m(len(col), 5)] {
 				uniqueVals[v] = struct{}{}
 			}
 			samples := make([]string, 0, len(uniqueVals))
@@ -73,13 +78,16 @@ Example:
 
 func previewTable(t *pkg.Table) string {
 	preview := pkg.NewTable(t.Headers)
-	for i := 0; i < min(5, len(t.Rows)); i++ {
-		preview.AddRow(t.Rows[i])
+	for i := 0; i < m(5, len(t.Rows)); i++ {
+		err := preview.AddRow(t.Rows[i])
+		if err != nil {
+			return ""
+		}
 	}
 	return preview.String()
 }
 
-func min(a, b int) int {
+func m(a, b int) int {
 	if a < b {
 		return a
 	}
