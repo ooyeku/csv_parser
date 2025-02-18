@@ -1,10 +1,13 @@
 package pkg
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 )
 
 // Table represents a data table with headers and rows
@@ -368,4 +371,133 @@ func (t *Table) Copy() *Table {
 		newTable.Rows = append(newTable.Rows, newRow)
 	}
 	return newTable
+}
+
+// ExportToJSON exports the table to a JSON file with optional formatting
+func (t *Table) ExportToJSON(writer io.Writer) error {
+	if t == nil || len(t.Headers) == 0 {
+		return fmt.Errorf("cannot export empty table")
+	}
+
+	// Create a slice of maps for JSON encoding
+	data := make([]map[string]interface{}, len(t.Rows))
+	for i, row := range t.Rows {
+		rowMap := make(map[string]interface{})
+		for j, header := range t.Headers {
+			// Convert values based on column type
+			colType, _ := t.GetColumnType(header)
+			value := row[j]
+
+			switch colType {
+			case TypeInteger:
+				if val, err := strconv.ParseInt(value, 10, 64); err == nil {
+					rowMap[header] = val
+					continue
+				}
+			case TypeFloat:
+				if val, err := strconv.ParseFloat(value, 64); err == nil {
+					rowMap[header] = val
+					continue
+				}
+			case TypeBoolean:
+				if strings.EqualFold(value, "true") {
+					rowMap[header] = true
+					continue
+				} else if strings.EqualFold(value, "false") {
+					rowMap[header] = false
+					continue
+				}
+			case TypeNull:
+				if value == "" || strings.EqualFold(value, "null") || strings.EqualFold(value, "\\N") {
+					rowMap[header] = nil
+					continue
+				}
+			}
+			rowMap[header] = value
+		}
+		data[i] = rowMap
+	}
+
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(data)
+}
+
+// ExportToHTML exports the table to an HTML file with responsive styling
+func (t *Table) ExportToHTML(writer io.Writer) error {
+	if t == nil || len(t.Headers) == 0 {
+		return fmt.Errorf("cannot export empty table")
+	}
+
+	const htmlTemplate = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Data</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #f2f2f2;
+        }
+        @media (max-width: 600px) {
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+            th, td {
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table>
+        <thead>
+            <tr>
+                {{range .Headers}}<th>{{.}}</th>{{end}}
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>{{end}}
+        </tbody>
+    </table>
+</body>
+</html>`
+
+	tmpl, err := template.New("table").Parse(htmlTemplate)
+	if err != nil {
+		return fmt.Errorf("error parsing HTML template: %w", err)
+	}
+
+	return tmpl.Execute(writer, t)
 }

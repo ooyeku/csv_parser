@@ -89,6 +89,21 @@ func (r *REPL) Start() {
 				}
 			}
 			r.showPreview(n, mainFormat)
+		case "export":
+			if r.currentTable == nil {
+				fmt.Println("No file loaded. Use 'load <file>' first.")
+				continue
+			}
+			if len(args) < 3 {
+				fmt.Println("Usage: export <format> <output_file>")
+				fmt.Println("Formats: json, html")
+				continue
+			}
+			if err := r.exportTable(args[1], args[2]); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			} else {
+				fmt.Printf("Table exported to %s\n", args[2])
+			}
 		}
 	}
 }
@@ -103,6 +118,7 @@ func (r *REPL) showHelp() {
   correlate [cols]         - Show correlation matrix for numeric columns
   pivot <row> <col> <val> - Create pivot table with aggregation
   dates <col>             - Analyze dates in a column
+  export <format> <file>  - Export table (formats: json, html)
   undo                    - Undo last operation
   redo                    - Redo last undone operation
   help                    - Show this help message
@@ -155,4 +171,21 @@ func minimum(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (r *REPL) exportTable(format, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("error creating file: %w", err)
+	}
+	defer file.Close()
+
+	switch strings.ToLower(format) {
+	case "json":
+		return r.currentTable.ExportToJSON(file)
+	case "html":
+		return r.currentTable.ExportToHTML(file)
+	default:
+		return fmt.Errorf("unsupported format: %s (use 'json' or 'html')", format)
+	}
 }

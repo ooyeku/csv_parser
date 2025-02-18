@@ -39,7 +39,6 @@ type Reader struct {
 	// State
 	inQuotes         bool
 	endOfField       bool
-	endOfRecord      bool
 	lastCharWasQuote bool
 
 	// Statistics
@@ -60,7 +59,8 @@ var recordPool = sync.Pool{
 // Add field buffer pooling
 var fieldPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, 0, 256)
+		b := make([]byte, 0, 256)
+		return &b // Return pointer to slice
 	},
 }
 
@@ -195,8 +195,8 @@ func (cr *Reader) commitField() {
 	// Save the buffer and return it to pool
 	buf := cr.field
 	defer func() {
-		buf = buf[:0]      // reset slice
-		fieldPool.Put(buf) // return to pool
+		buf = buf[:0]
+		fieldPool.Put(&buf)
 	}()
 
 	str := string(buf)
@@ -209,7 +209,7 @@ func (cr *Reader) commitField() {
 	}
 
 	cr.record = append(cr.record, str)
-	cr.field = fieldPool.Get().([]byte)[:0] // Get new buffer from pool
+	cr.field = *(fieldPool.Get().(*[]byte)) // Get pointer and dereference
 }
 
 // FieldCount returns the number of fields in the current record
