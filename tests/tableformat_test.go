@@ -1,18 +1,20 @@
-package pkg
+package pkg_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/ooyeku/csv_parser/pkg"
 )
 
 func TestDefaultFormat(t *testing.T) {
-	format := DefaultFormat()
+	format := pkg.DefaultFormat()
 
-	if format.Style != RoundedStyle {
+	if format.Style != pkg.RoundedStyle {
 		t.Error("DefaultFormat() should use RoundedStyle")
 	}
 
-	if format.HeaderStyle != Bold {
+	if format.HeaderStyle != pkg.Bold {
 		t.Error("DefaultFormat() should use Bold for headers")
 	}
 
@@ -65,7 +67,7 @@ func TestFormatCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatCell(tt.content, tt.width, tt.alignment)
+			got := pkg.FormatCell(tt.content, tt.width, tt.alignment)
 			if got != tt.want {
 				t.Errorf("formatCell() = %q, want %q", got, tt.want)
 			}
@@ -102,7 +104,7 @@ func TestWrapText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := wrapText(tt.text, tt.width)
+			got := pkg.WrapText(tt.text, tt.width)
 			if !equalStringSlices(got, tt.want) {
 				t.Errorf("wrapText() = %v, want %v", got, tt.want)
 			}
@@ -111,7 +113,7 @@ func TestWrapText(t *testing.T) {
 }
 
 func TestTableFormat(t *testing.T) {
-	table := NewTable([]string{"Name", "Age", "City"})
+	table := pkg.NewTable([]string{"Name", "Age", "City"})
 	err := table.AddRow([]string{"John Doe", "30", "New York"})
 	if err != nil {
 		return
@@ -123,13 +125,13 @@ func TestTableFormat(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		opts    FormatOptions
+		opts    pkg.FormatOptions
 		checks  []string
 		exclude []string
 	}{
 		{
 			name: "default style",
-			opts: DefaultFormat(),
+			opts: pkg.DefaultFormat(),
 			checks: []string{
 				"╭", "╮", // Top corners
 				"│",                   // Vertical borders
@@ -139,9 +141,9 @@ func TestTableFormat(t *testing.T) {
 		},
 		{
 			name: "fancy style",
-			opts: FormatOptions{
-				Style:       FancyStyle,
-				HeaderStyle: Bold,
+			opts: pkg.FormatOptions{
+				Style:       pkg.FancyStyle,
+				HeaderStyle: pkg.Bold,
 			},
 			checks: []string{
 				"╔", "╗", // Top corners
@@ -151,8 +153,8 @@ func TestTableFormat(t *testing.T) {
 		},
 		{
 			name: "compact style",
-			opts: FormatOptions{
-				Style:          RoundedStyle,
+			opts: pkg.FormatOptions{
+				Style:          pkg.RoundedStyle,
 				CompactBorders: true,
 				MaxColumnWidth: 10,
 			},
@@ -162,8 +164,8 @@ func TestTableFormat(t *testing.T) {
 		},
 		{
 			name: "with row numbers",
-			opts: FormatOptions{
-				Style:        DefaultStyle,
+			opts: pkg.FormatOptions{
+				Style:        pkg.DefaultStyle,
 				NumberedRows: true,
 			},
 			checks: []string{
@@ -197,14 +199,14 @@ func TestTableFormat(t *testing.T) {
 func TestBorderStyles(t *testing.T) {
 	styles := []struct {
 		name  string
-		style BorderStyle
+		style pkg.BorderStyle
 	}{
-		{"Default", DefaultStyle},
-		{"Fancy", FancyStyle},
-		{"Rounded", RoundedStyle},
+		{"Default", pkg.DefaultStyle},
+		{"Fancy", pkg.FancyStyle},
+		{"Rounded", pkg.RoundedStyle},
 	}
 
-	table := NewTable([]string{"Test"})
+	table := pkg.NewTable([]string{"Test"})
 	err := table.AddRow([]string{"Data"})
 	if err != nil {
 		return
@@ -212,7 +214,7 @@ func TestBorderStyles(t *testing.T) {
 
 	for _, style := range styles {
 		t.Run(style.name, func(t *testing.T) {
-			opts := FormatOptions{Style: style.style}
+			opts := pkg.FormatOptions{Style: style.style}
 			result := table.Format(opts)
 
 			// Verify top border

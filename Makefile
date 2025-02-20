@@ -9,19 +9,19 @@ build:
 
 # Run all tests
 test: test-race
-	go test ./...
+	go test ./tests/...
 
 # Run tests with verbose output
 test-verbose:
-	go test -v ./...
+	go test -v ./tests/...
 
 # Run tests with race detection
 test-race:
-	go test -race ./...
+	go test -race ./tests/...
 
 # Run short tests only
 test-short:
-	go test -short ./...
+	go test -short ./tests/...
 
 # Run tests for specific package
 test-pkg:
@@ -30,7 +30,7 @@ test-pkg:
 		echo "Example: make test-pkg pkg=table"; \
 		exit 1; \
 	fi
-	go test -v ./pkg/$(pkg)
+	go test -v ./tests/$(pkg)
 
 # Run tests with coverage
 coverage: coverage-html coverage-func
@@ -38,20 +38,20 @@ coverage: coverage-html coverage-func
 # Generate coverage report
 coverage-func:
 	@echo "Coverage by function:"
-	@go test -coverprofile=coverage.out ./...
+	@go test -coverprofile=coverage.out ./tests/...
 	@go tool cover -func=coverage.out
 
 # Generate HTML coverage report
 coverage-html:
 	@echo "Generating HTML coverage report..."
-	@go test -coverprofile=coverage.out ./...
+	@go test -coverprofile=coverage.out ./tests/...
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated at coverage.html"
 
 # Run all tests and generate coverage badge
 coverage-badge: coverage
 	@echo "Generating coverage badge..."
-	@go test -covermode=atomic -coverprofile=coverage.out ./...
+	@go test -covermode=atomic -coverprofile=coverage.out ./tests/...
 	@COVERAGE=$$(go tool cover -func=coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+') ;\
 	echo "Total coverage: $$COVERAGE%"
 

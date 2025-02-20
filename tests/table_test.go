@@ -1,13 +1,25 @@
-package pkg
+package pkg_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/ooyeku/csv_parser/pkg"
+)
+
+type ColumnType int
+
+const (
+	TypeNull ColumnType = iota
+	TypeInteger
+	TypeFloat
+	TypeBoolean
+	TypeString
 )
 
 func TestNewTable(t *testing.T) {
 	headers := []string{"id", "name", "age"}
-	table := NewTable(headers)
+	table := pkg.NewTable(headers)
 
 	if !reflect.DeepEqual(table.Headers, headers) {
 		t.Errorf("NewTable() headers = %v, want %v", table.Headers, headers)
@@ -17,11 +29,11 @@ func TestNewTable(t *testing.T) {
 		t.Errorf("NewTable() rows = %v, want empty", table.Rows)
 	}
 
-	if len(table.types) != len(headers) {
-		t.Errorf("NewTable() types length = %d, want %d", len(table.types), len(headers))
+	if len(table.GetTypes()) != len(headers) {
+		t.Errorf("NewTable() types length = %d, want %d", len(table.GetTypes()), len(headers))
 	}
 
-	for header, idx := range table.index {
+	for header, idx := range table.GetIndex() {
 		if headers[idx] != header {
 			t.Errorf("NewTable() index mapping incorrect for %s", header)
 		}
@@ -57,7 +69,7 @@ func TestAddRow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			table := NewTable(tt.headers)
+			table := pkg.NewTable(tt.headers)
 			err := table.AddRow(tt.row)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("AddRow() error = %v, wantErr %v", err, tt.wantErr)
@@ -73,24 +85,24 @@ func TestDetectType(t *testing.T) {
 	tests := []struct {
 		name string
 		val  string
-		want ColumnType
+		want pkg.ColumnType
 	}{
-		{"empty string", "", TypeNull},
-		{"null string", "null", TypeNull},
-		{"\\N string", "\\N", TypeNull},
-		{"integer", "123", TypeInteger},
-		{"negative integer", "-123", TypeInteger},
-		{"float", "123.45", TypeFloat},
-		{"negative float", "-123.45", TypeFloat},
-		{"scientific notation", "1.23e-4", TypeFloat},
-		{"boolean true", "true", TypeBoolean},
-		{"boolean false", "false", TypeBoolean},
-		{"string", "hello", TypeString},
+		{"empty string", "", pkg.TypeNull},
+		{"null string", "null", pkg.TypeNull},
+		{"\\N string", "\\N", pkg.TypeNull},
+		{"integer", "123", pkg.TypeInteger},
+		{"negative integer", "-123", pkg.TypeInteger},
+		{"float", "123.45", pkg.TypeFloat},
+		{"negative float", "-123.45", pkg.TypeFloat},
+		{"scientific notation", "1.23e-4", pkg.TypeFloat},
+		{"boolean true", "true", pkg.TypeBoolean},
+		{"boolean false", "false", pkg.TypeBoolean},
+		{"string", "hello", pkg.TypeString},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := detectType(tt.val); got != tt.want {
+			if got := pkg.DetectType(tt.val); got != tt.want {
 				t.Errorf("detectType() = %v, want %v", got, tt.want)
 			}
 		})
@@ -98,7 +110,7 @@ func TestDetectType(t *testing.T) {
 }
 
 func TestGetColumn(t *testing.T) {
-	table := NewTable([]string{"id", "name", "age"})
+	table := pkg.NewTable([]string{"id", "name", "age"})
 	err := table.AddRow([]string{"1", "John", "25"})
 	if err != nil {
 		return
@@ -143,7 +155,7 @@ func TestGetColumn(t *testing.T) {
 }
 
 func TestFilter(t *testing.T) {
-	table := NewTable([]string{"id", "name", "age"})
+	table := pkg.NewTable([]string{"id", "name", "age"})
 	err := table.AddRow([]string{"1", "John", "25"})
 	if err != nil {
 		return
@@ -173,7 +185,7 @@ func TestFilter(t *testing.T) {
 }
 
 func TestSort(t *testing.T) {
-	table := NewTable([]string{"id", "name", "age"})
+	table := pkg.NewTable([]string{"id", "name", "age"})
 	err := table.AddRow([]string{"2", "Jane", "30"})
 	if err != nil {
 		return
@@ -191,13 +203,13 @@ func TestSort(t *testing.T) {
 		name    string
 		columns []string
 		wantErr bool
-		check   func(*Table) bool
+		check   func(*pkg.Table) bool
 	}{
 		{
 			name:    "sort by age ascending",
 			columns: []string{"age:asc"},
 			wantErr: false,
-			check: func(t *Table) bool {
+			check: func(t *pkg.Table) bool {
 				return t.Rows[0][2] <= t.Rows[1][2] && t.Rows[1][2] <= t.Rows[2][2]
 			},
 		},
@@ -205,7 +217,7 @@ func TestSort(t *testing.T) {
 			name:    "sort by age desc, name asc",
 			columns: []string{"age:desc", "name:asc"},
 			wantErr: false,
-			check: func(t *Table) bool {
+			check: func(t *pkg.Table) bool {
 				return t.Rows[0][2] >= t.Rows[1][2] &&
 					(t.Rows[0][2] != t.Rows[1][2] || t.Rows[0][1] <= t.Rows[1][1])
 			},
@@ -214,13 +226,13 @@ func TestSort(t *testing.T) {
 			name:    "invalid column",
 			columns: []string{"invalid:asc"},
 			wantErr: true,
-			check:   func(t *Table) bool { return true },
+			check:   func(t *pkg.Table) bool { return true },
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tableCopy := NewTable(table.Headers)
+			tableCopy := pkg.NewTable(table.Headers)
 			for _, row := range table.Rows {
 				err := tableCopy.AddRow(row)
 				if err != nil {
@@ -242,7 +254,7 @@ func TestSort(t *testing.T) {
 }
 
 func TestGroupBy(t *testing.T) {
-	table := NewTable([]string{"id", "dept", "salary"})
+	table := pkg.NewTable([]string{"id", "dept", "salary"})
 	err := table.AddRow([]string{"1", "IT", "1000"})
 	if err != nil {
 		return
@@ -261,14 +273,14 @@ func TestGroupBy(t *testing.T) {
 		groupCols []string
 		aggs      map[string]string
 		wantErr   bool
-		checkFn   func(*Table) bool
+		checkFn   func(*pkg.Table) bool
 	}{
 		{
 			name:      "group by dept with sum",
 			groupCols: []string{"dept"},
 			aggs:      map[string]string{"salary": "sum"},
 			wantErr:   false,
-			checkFn: func(t *Table) bool {
+			checkFn: func(t *pkg.Table) bool {
 				return len(t.Rows) == 2 // Should have 2 departments
 			},
 		},
@@ -277,14 +289,14 @@ func TestGroupBy(t *testing.T) {
 			groupCols: []string{"invalid"},
 			aggs:      map[string]string{"salary": "sum"},
 			wantErr:   true,
-			checkFn:   func(t *Table) bool { return true },
+			checkFn:   func(t *pkg.Table) bool { return true },
 		},
 		{
 			name:      "invalid aggregation",
 			groupCols: []string{"dept"},
 			aggs:      map[string]string{"salary": "invalid"},
 			wantErr:   true,
-			checkFn:   func(t *Table) bool { return true },
+			checkFn:   func(t *pkg.Table) bool { return true },
 		},
 	}
 
@@ -303,7 +315,7 @@ func TestGroupBy(t *testing.T) {
 }
 
 func TestCopy(t *testing.T) {
-	original := NewTable([]string{"id", "name"})
+	original := pkg.NewTable([]string{"id", "name"})
 	err := original.AddRow([]string{"1", "John"})
 	if err != nil {
 		return
@@ -326,13 +338,13 @@ func TestCopy(t *testing.T) {
 	}
 
 	// Verify types
-	if !reflect.DeepEqual(table.types, original.types) {
-		t.Errorf("Copy() types = %v, want %v", table.types, original.types)
+	if !reflect.DeepEqual(table.GetTypes(), original.GetTypes()) {
+		t.Errorf("Copy() types = %v, want %v", table.GetTypes(), original.GetTypes())
 	}
 
 	// Verify index
-	if !reflect.DeepEqual(table.index, original.index) {
-		t.Errorf("Copy() index = %v, want %v", table.index, original.index)
+	if !reflect.DeepEqual(table.GetIndex(), original.GetIndex()) {
+		t.Errorf("Copy() index = %v, want %v", table.GetIndex(), original.GetIndex())
 	}
 
 	// Verify deep table by modifying original

@@ -155,7 +155,7 @@ func (t *Table) Format(opts FormatOptions) string {
 		}
 		for i, h := range t.Headers {
 			sb.WriteString(" ")
-			cell := formatCell(h, widths[i], getAlignment(opts.Alignment, i, "center"))
+			cell := FormatCell(h, widths[i], getAlignment(opts.Alignment, i, "center"))
 			sb.WriteString(opts.HeaderColor + opts.HeaderStyle + cell + Reset)
 			sb.WriteString(" " + opts.Style.Vertical)
 		}
@@ -172,7 +172,7 @@ func (t *Table) Format(opts FormatOptions) string {
 			maxLines := 1
 			for i, cell := range row {
 				if opts.MaxColumnWidth > 0 && len(cell) > opts.MaxColumnWidth {
-					wrappedCells[i] = wrapText(cell, opts.MaxColumnWidth)
+					wrappedCells[i] = WrapText(cell, opts.MaxColumnWidth)
 					if len(wrappedCells[i]) > maxLines {
 						maxLines = len(wrappedCells[i])
 					}
@@ -196,7 +196,7 @@ func (t *Table) Format(opts FormatOptions) string {
 				for i := range row {
 					sb.WriteString(" ")
 					if lineIdx < len(wrappedCells[i]) {
-						cell := formatCell(wrappedCells[i][lineIdx], widths[i], getAlignment(opts.Alignment, i, "left"))
+						cell := FormatCell(wrappedCells[i][lineIdx], widths[i], getAlignment(opts.Alignment, i, "left"))
 						if opts.AlternateRows && rowIdx%2 == 1 {
 							cell = opts.AlternateColor + cell + Reset
 						}
@@ -217,7 +217,7 @@ func (t *Table) Format(opts FormatOptions) string {
 
 			for i, cell := range row {
 				sb.WriteString(" ")
-				formattedCell := formatCell(cell, widths[i], getAlignment(opts.Alignment, i, "left"))
+				formattedCell := FormatCell(cell, widths[i], getAlignment(opts.Alignment, i, "left"))
 				if opts.AlternateRows && rowIdx%2 == 1 {
 					formattedCell = opts.AlternateColor + formattedCell + Reset
 				}
@@ -275,7 +275,7 @@ func writeRowBorder(sb *strings.Builder, opts FormatOptions) {
 	sb.WriteString(opts.BorderColor + opts.Style.Vertical + Reset)
 }
 
-func formatCell(content string, width int, alignment string) string {
+func FormatCell(content string, width int, alignment string) string {
 	if len(content) > width {
 		return content[:width-3] + "..."
 	}
@@ -300,7 +300,7 @@ func getAlignment(alignments []string, index int, defaultAlign string) string {
 	return defaultAlign
 }
 
-func wrapText(text string, width int) []string {
+func WrapText(text string, width int) []string {
 	if len(text) <= width {
 		return []string{text}
 	}

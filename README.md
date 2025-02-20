@@ -77,11 +77,13 @@ csv_parser export --format=json data.csv output.txt
 ```
 
 The export command supports:
+
 - JSON format: Creates a JSON array of objects where each object represents a row
 - HTML format: Creates an HTML table with basic styling
 
 In the REPL:
-```
+
+```bash
 > load data.csv
 > export json data.json    # Export current table to JSON
 > export html report.html  # Export current table to HTML

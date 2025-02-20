@@ -57,10 +57,10 @@ func (t *Table) AddRow(row []string) error {
 func (t *Table) updateTypes(row []string) {
 	for i, val := range row {
 		if t.types[i] == TypeNull {
-			t.types[i] = detectType(val)
+			t.types[i] = DetectType(val)
 			continue
 		}
-		newType := detectType(val)
+		newType := DetectType(val)
 		if newType != t.types[i] {
 			// If types conflict, fall back to string
 			t.types[i] = TypeString
@@ -69,7 +69,7 @@ func (t *Table) updateTypes(row []string) {
 }
 
 // detectType attempts to determine the type of a value
-func detectType(val string) ColumnType {
+func DetectType(val string) ColumnType {
 	if val == "" || strings.EqualFold(val, "null") || strings.EqualFold(val, "\\N") {
 		return TypeNull
 	}
@@ -500,4 +500,14 @@ func (t *Table) ExportToHTML(writer io.Writer) error {
 	}
 
 	return tmpl.Execute(writer, t)
+}
+
+// GetTypes returns the column types
+func (t *Table) GetTypes() []ColumnType {
+	return t.types
+}
+
+// GetIndex returns the header to column index mapping
+func (t *Table) GetIndex() map[string]int {
+	return t.index
 }

@@ -1,27 +1,29 @@
-package pkg
+package pkg_test
 
 import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/ooyeku/csv_parser/pkg"
 )
 
 func TestNewReader(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
-		cfg         Config
+		cfg         pkg.Config
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name:  "valid config",
 			input: "a,b,c",
-			cfg:   DefaultConfig(),
+			cfg:   pkg.DefaultConfig(),
 		},
 		{
 			name: "invalid config - same delimiter and quote",
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter: ',',
 				Quote:     ',',
 			},
@@ -30,7 +32,7 @@ func TestNewReader(t *testing.T) {
 		},
 		{
 			name: "invalid config - same delimiter and comment",
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter: ',',
 				Comment:   ',',
 			},
@@ -42,7 +44,7 @@ func TestNewReader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := strings.NewReader(tt.input)
-			_, err := NewReader(reader, tt.cfg)
+			_, err := pkg.NewReader(reader, tt.cfg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewReader() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -58,14 +60,14 @@ func TestReadRecord(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		cfg     Config
+		cfg     pkg.Config
 		want    [][]string
 		wantErr bool
 	}{
 		{
 			name:  "simple csv",
 			input: "a,b,c\n1,2,3",
-			cfg:   DefaultConfig(),
+			cfg:   pkg.DefaultConfig(),
 			want: [][]string{
 				{"a", "b", "c"},
 				{"1", "2", "3"},
@@ -74,7 +76,7 @@ func TestReadRecord(t *testing.T) {
 		{
 			name:  "quoted fields",
 			input: `"a,a","b""b",c` + "\n" + `"1,1","2""2",3`,
-			cfg:   DefaultConfig(),
+			cfg:   pkg.DefaultConfig(),
 			want: [][]string{
 				{"a,a", `b"b`, "c"},
 				{"1,1", `2"2`, "3"},
@@ -83,7 +85,7 @@ func TestReadRecord(t *testing.T) {
 		{
 			name:  "custom delimiter",
 			input: "a;b;c\n1;2;3",
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter: ';',
 				Quote:     '"',
 			},
@@ -95,7 +97,7 @@ func TestReadRecord(t *testing.T) {
 		{
 			name:  "with comments",
 			input: "# header\na,b,c\n#skip this\n1,2,3",
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter: ',',
 				Quote:     '"',
 				Comment:   '#',
@@ -108,7 +110,7 @@ func TestReadRecord(t *testing.T) {
 		{
 			name:  "with null values",
 			input: `a,\N,c`,
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter: ',',
 				Quote:     '"',
 				Null:      "\\N",
@@ -120,7 +122,7 @@ func TestReadRecord(t *testing.T) {
 		{
 			name:  "trim leading whitespace",
 			input: "a, b ,c\n1, 2 ,3",
-			cfg: Config{
+			cfg: pkg.Config{
 				Delimiter:   ',',
 				Quote:       '"',
 				TrimLeading: true,
@@ -134,7 +136,7 @@ func TestReadRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader, err := NewReader(strings.NewReader(tt.input), tt.cfg)
+			reader, err := pkg.NewReader(strings.NewReader(tt.input), tt.cfg)
 			if err != nil {
 				t.Fatalf("NewReader() error = %v", err)
 			}
@@ -176,7 +178,7 @@ func TestReadRecord(t *testing.T) {
 
 func TestPosition(t *testing.T) {
 	input := "a,b,c\n1,2,3"
-	reader, err := NewReader(strings.NewReader(input), DefaultConfig())
+	reader, err := pkg.NewReader(strings.NewReader(input), pkg.DefaultConfig())
 	if err != nil {
 		t.Fatalf("NewReader() error = %v", err)
 	}
@@ -200,7 +202,7 @@ func BenchmarkReadRecord(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		reader, _ := NewReader(strings.NewReader(input), DefaultConfig())
+		reader, _ := pkg.NewReader(strings.NewReader(input), pkg.DefaultConfig())
 		b.StartTimer()
 
 		for {
@@ -221,7 +223,7 @@ func BenchmarkReadRecordWithQuotes(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		reader, _ := NewReader(strings.NewReader(input), DefaultConfig())
+		reader, _ := pkg.NewReader(strings.NewReader(input), pkg.DefaultConfig())
 		b.StartTimer()
 
 		for {
